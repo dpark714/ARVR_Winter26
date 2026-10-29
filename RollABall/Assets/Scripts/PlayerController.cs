@@ -3,61 +3,78 @@ using UnityEngine.InputSystem;
 
 public class PlayerController : MonoBehaviour
 {
-
     private Rigidbody rb;
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
     public float speed = 10f;
-    public AudioSource pickupSound; // Reference to the AudioSource component for the pickup sound effect
+    public AudioSource pickupSound; // 7a: AudioSource with the pickup clip (Play On Awake OFF)
 
-    //For Score
+    // For Score
     [Header("Score")]
-    public TMPro.TextMeshProUGUI scoreText; // Reference to the TextMeshProUGUI component for displaying the score
-    public int score = 0; // Player's score
+    public TMPro.TextMeshProUGUI scoreText; // 7f
+    public int score = 0;
 
     // For confetti
     [Header("Confetti")]
-    public ParticleSystem confettiEffect; // Reference to the ParticleSystem component for the confetti effect
-    public TimerScript timerScript; // Reference to the TimerScript component to check if time is up
-    private int totalPickups; // Total number of pickups in the scene
-    //For winning
+    public ParticleSystem confettiEffect;   // 7j
+    public TimerScript timerScript;         // To stop the timer on win
+    private int totalPickups;
+
+    // For winning
     [Header("Win")]
-    public GameObject winText; // Reference to the "You Win!" text object
-    public ParticleSystem fireworks; // Reference to the ParticleSystem component for the confetti effect
+    public GameObject winText;              // 7i: "Congratulations!" text object
+    public ParticleSystem fireworks;        // 7j
+    public AudioSource winSound;            // success jingle (Play On Awake OFF)
+
+    // NEW: music and rolling sound
+    [Header("Music & Rolling Sound")]
+    public AudioSource backgroundMusic;     // Loop ON, Play On Awake ON
+    public AudioSource rollingSound;        // Loop ON, Play On Awake ON, Volume 0
+    public float maxRollSpeed = 8f;         // Speed at which the rolling sound is at full volume
+
     private void OnTriggerEnter(Collider other)
     {
         if (other.CompareTag("PickUp"))
         {
             other.gameObject.SetActive(false); // Deactivate the pickup object
-            pickupSound.Play();
-            
+
+            // PlayOneShot lets sounds overlap when collecting several pickups quickly
+            if (pickupSound != null)
+                pickupSound.PlayOneShot(pickupSound.clip);
+
             score = score + 1;
-            UpdateScoreText(); // Update the score display
+            UpdateScoreText();
 
             if (score >= totalPickups)
-        
             {
                 Debug.Log("WIN! score " + score + " of " + totalPickups);
+
                 if (confettiEffect != null)
                 {
-                    confettiEffect.transform.position = transform.position; // Set the position of the confetti effect to the player's position
-                    confettiEffect.Play(); // Play the confetti effect when all pickups are collected
-            
+                    confettiEffect.transform.position = transform.position;
+                    confettiEffect.Play();
                 }
-            if (winText != null)
-                    winText.SetActive(true); 
 
-            if (fireworks != null)
-                fireworks.Play(); // Play the fireworks effect when all pickups are collected
-            
-            if (timerScript != null)
+                if (winText != null)
+                    winText.SetActive(true);
+
+                if (fireworks != null)
+                    fireworks.Play();
+
+                if (timerScript != null)
                     timerScript.StopTimer();
+
+                // NEW: swap the music for the success sound
+                if (backgroundMusic != null)
+                    backgroundMusic.Stop();
+                if (winSound != null)
+                    winSound.Play();
             }
         }
     }
+
     void Start()
     {
         if (winText != null)
-            winText.SetActive(false); // Hide "You Win!" at the start
+            winText.SetActive(false); // Hide "Congratulations!" at the start
 
         rb = GetComponent<Rigidbody>();
 
@@ -68,29 +85,35 @@ public class PlayerController : MonoBehaviour
             if (p.GetComponent<Collider>() != null)
             {
                 totalPickups++;
-                Debug.Log("Pickup found: " + p.name, p); // click this message to find the object
             }
         }
 
-        UpdateScoreText(); // Initialize the score display
+        UpdateScoreText();
     }
 
     void UpdateScoreText()
     {
         if (scoreText != null)
         {
-            scoreText.text = "Score: " + score; // Update the score text
+            scoreText.text = "Score: " + score + " / " + totalPickups;
         }
     }
 
+    // Called by TimerScript when the time is up
     public void StopPlayer()
     {
         rb.linearVelocity = Vector3.zero;   // Use rb.velocity on older Unity versions
         rb.angularVelocity = Vector3.zero;
+
+        // NEW: silence the rolling sound and the music
+        if (rollingSound != null)
+            rollingSound.Stop();
+        if (backgroundMusic != null)
+            backgroundMusic.Stop();
+
         enabled = false;
     }
 
-    // Update is called once per frame
     private void FixedUpdate()
     {
         float moveX = 0f;
@@ -112,9 +135,23 @@ public class PlayerController : MonoBehaviour
                 moveZ = 1f;
         }
 
-        // Create a movement vector based on the input
         Vector3 movement = new Vector3(moveX, 0f, moveZ);
-        rb.AddForce(movement*speed, ForceMode.Force);
+        rb.AddForce(movement * speed, ForceMode.Force);
+
+        UpdateRollingSound();
     }
-    
+
+    // rolling sound gets louder and higher the faster the ball rolls,
+    // and goes quiet when the ball stands still or is in the air.
+    void UpdateRollingSound()
+    {
+        if (rollingSound == null) return;
+
+        bool grounded = Physics.Raycast(transform.position, Vector3.down, 0.6f);
+        float speedPercent = Mathf.Clamp01(rb.linearVelocity.magnitude / maxRollSpeed);
+
+        float targetVolume = grounded ? speedPercent : 0f;
+        rollingSound.volume = Mathf.Lerp(rollingSound.volume, targetVolume, 10f * Time.fixedDeltaTime);
+        rollingSound.pitch = 0.8f + speedPercent * 0.5f;
+    }
 }

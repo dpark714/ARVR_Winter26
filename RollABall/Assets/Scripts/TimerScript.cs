@@ -1,12 +1,14 @@
 using UnityEngine;
 using TMPro;
 
+// 7g: countdown timer + "Time's up!"
 public class TimerScript : MonoBehaviour
 {
     public float startTime = 90f;
     public TextMeshProUGUI timerText;      // Shows "Time: 90"
     public GameObject timesUpText;         // "Time's up!" text
     public PlayerController player;
+    public AudioSource failSound;          // NEW: fail sound (Play On Awake OFF)
 
     private float timeRemaining;
     private bool endGame = false;
@@ -32,16 +34,19 @@ public class TimerScript : MonoBehaviour
             if (timesUpText != null)
                 timesUpText.SetActive(true);
             if (player != null)
-                player.StopPlayer();
+                player.StopPlayer();       // also stops music + rolling sound
+            if (failSound != null)
+                failSound.Play();
         }
 
-        UpdateTimerText(); // Show the new time every frame
+        UpdateTimerText();
     }
 
     void UpdateTimerText()
     {
+        // CeilToInt: shows "1" during the last second instead of already "0"
         if (timerText != null)
-            timerText.text = "Time: " + timeRemaining.ToString("F0");
+            timerText.text = "Time: " + Mathf.CeilToInt(timeRemaining);
     }
 
     // Called by PlayerController when all pickups are collected
